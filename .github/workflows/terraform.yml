@@ -52,7 +52,7 @@ jobs:
     # Upload the tfplan artifact for the deploy job
     - name: "Upload Terraform Plan"
       if: github.event_name == 'pull_request'
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: tfplan
         path: tfplan
@@ -82,7 +82,7 @@ jobs:
 
     # Download the tfplan artifact from the terraform job
     - name: "Download Terraform Plan"
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: tfplan
 
