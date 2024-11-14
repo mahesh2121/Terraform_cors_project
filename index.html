@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test CORS with S3</title>
+</head>
+<body>
+  <h1>Testing CORS on Amazon S3</h1>
+  <button onclick="fetchData()">Fetch Data from S3</button>
+  <div id="result"></div>
+
+  <script>
+    function fetchData() {
+      const url = "https://my-cors-enabled-bucket-12345.s3.amazonaws.com/index.html"; // Replace with your bucket name
+
+      fetch(url)
+        .then(response => response.text())
+        .then(data => {
+          document.getElementById("result").innerText = "Data fetched successfully: " + data;
+        })
+        .catch(error => {
+          document.getElementById("result").innerText = "Error: " + error;
+        });
+    }
+  </script>
+</body>
+</html>
