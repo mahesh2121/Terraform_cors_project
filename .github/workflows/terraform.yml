@@ -85,9 +85,10 @@ jobs:
       uses: actions/download-artifact@v3
       with:
         name: tfplan
+
+    # Check if the tfplan file exists
     - name: "Check if tfplan file exists"
-        run: ls -l tfplan
-    
+      run: ls -l tfplan
 
     - name: "Terraform Apply"
       run: terraform apply -auto-approve tfplan
