@@ -24,17 +24,14 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
 
     steps:
-    # Step 1: Checkout the code
     - name: "Checkout code"
       uses: actions/checkout@v3
 
-    # Step 2: Set up Terraform
     - name: "Set up Terraform"
       uses: hashicorp/setup-terraform@v2
       with:
         terraform_version: ${{ env.TF_VERSION }}
 
-    # Step 3: Terraform Init
     - name: "Terraform Init"
       run: terraform init
       env:
@@ -42,20 +39,17 @@ jobs:
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         AWS_REGION: ${{ env.AWS_REGION }}
 
-    # Step 4: Terraform Format (Check formatting)
     - name: "Terraform Format"
       run: terraform fmt -check
 
-    # Step 5: Terraform Validate (Check syntax and configuration)
     - name: "Terraform Validate"
       run: terraform validate
 
-    # Step 6: Terraform Plan (Generate execution plan)
     - name: "Terraform Plan"
       id: plan
       run: terraform plan -out=tfplan
 
-    # Step 7: Upload Plan (For PR and visibility)
+    # Upload the tfplan artifact for the deploy job
     - name: "Upload Terraform Plan"
       if: github.event_name == 'pull_request'
       uses: actions/upload-artifact@v3
@@ -71,17 +65,14 @@ jobs:
     environment: production
 
     steps:
-    # Step 1: Checkout the code
     - name: "Checkout code"
       uses: actions/checkout@v3
 
-    # Step 2: Set up Terraform
     - name: "Set up Terraform"
       uses: hashicorp/setup-terraform@v2
       with:
         terraform_version: ${{ env.TF_VERSION }}
 
-    # Step 3: Terraform Init
     - name: "Terraform Init"
       run: terraform init
       env:
@@ -89,9 +80,14 @@ jobs:
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         AWS_REGION: ${{ env.AWS_REGION }}
 
-    # Step 4: Terraform Apply (Auto-approve)
+    # Download the tfplan artifact from the terraform job
+    - name: "Download Terraform Plan"
+      uses: actions/download-artifact@v3
+      with:
+        name: tfplan
+
     - name: "Terraform Apply"
-      run: terraform apply -auto-approve "tfplan"
+      run: terraform apply -auto-approve tfplan
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
