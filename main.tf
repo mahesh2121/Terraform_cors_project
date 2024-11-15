@@ -1,20 +1,20 @@
 # Remote backend configuration
 terraform {
   backend "s3" {
-    bucket = "my-terraform-state-bucket"  # Replace with your S3 bucket name
-    key    = "terraform/state/terraform.tfstate"  # Path to the state file in the bucket
-    region = "us-east-1"  # The AWS region where the bucket is located
-    encrypt = true  # Enable encryption for the state file in S3
+    bucket  = "my-terraform-state-bucket12121"    # Replace with your S3 bucket name
+    key     = "terraform/state/terraform.tfstate" # Path to the state file in the bucket
+    region  = "ap-south-1"                        # The AWS region where the bucket is located
+    encrypt = true                                # Enable encryption for the state file in S3
 
     # Optionally, configure a DynamoDB table for state locking (recommended for collaboration)
-    dynamodb_table = "terraform-lock-table"  # DynamoDB table name for state locking
-    acl           = "bucket-owner-full-control"  # Permissions for the state file
+    dynamodb_table = "terraform-lock-table"      # DynamoDB table name for state locking
+    acl            = "bucket-owner-full-control" # Permissions for the state file
   }
 }
 
 # AWS Provider Configuration
 provider "aws" {
-  region = "us-east-1"
+  region = "ap-south-1"
 }
 
 # Your existing resources (no changes here)
