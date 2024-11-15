@@ -1,29 +1,40 @@
+# Remote backend configuration
+terraform {
+  backend "s3" {
+    bucket = "my-terraform-state-bucket"  # Replace with your S3 bucket name
+    key    = "terraform/state/terraform.tfstate"  # Path to the state file in the bucket
+    region = "us-east-1"  # The AWS region where the bucket is located
+    encrypt = true  # Enable encryption for the state file in S3
+
+    # Optionally, configure a DynamoDB table for state locking (recommended for collaboration)
+    dynamodb_table = "terraform-lock-table"  # DynamoDB table name for state locking
+    acl           = "bucket-owner-full-control"  # Permissions for the state file
+  }
+}
+
+# AWS Provider Configuration
 provider "aws" {
   region = "us-east-1"
 }
 
-# Create an S3 bucket
+# Your existing resources (no changes here)
 resource "aws_s3_bucket" "cors_bucket" {
   bucket = "my-cors-enabled-bucket-12345" # Change to a globally unique bucket name
 }
 
-
 resource "aws_s3_bucket_acl" "cors_bucket_acl" {
   bucket = aws_s3_bucket.cors_bucket.id
-  acl    = "public-read" # Set to public, we'll manage public access via policy
+  acl    = "public-read"
 }
 
-
-# Remove public access block settings (allow public access if needed)
 resource "aws_s3_bucket_public_access_block" "cors_bucket_public_access_block" {
   bucket = aws_s3_bucket.cors_bucket.bucket
 
-  block_public_acls   = true  # Allow public ACLs
-  ignore_public_acls  = false # Don't ignore ACLs
-  block_public_policy = false # Allow public policies
+  block_public_acls   = true
+  ignore_public_acls  = false
+  block_public_policy = false
 }
 
-# Configure CORS using aws_s3_bucket_cors_configuration
 resource "aws_s3_bucket_cors_configuration" "cors_config" {
   bucket = aws_s3_bucket.cors_bucket.bucket
 
@@ -35,15 +46,13 @@ resource "aws_s3_bucket_cors_configuration" "cors_config" {
   }
 }
 
-# Upload an example HTML file to the S3 bucket to test CORS (using aws_s3_object instead)
 resource "aws_s3_object" "test_html" {
   bucket = aws_s3_bucket.cors_bucket.bucket
   key    = "index.html"
   source = "index.html"
-  acl    = "public-read" # This is okay for public access testing
+  acl    = "public-read"
 }
 
-# Define a policy to allow public read access to all objects in the bucket
 resource "aws_s3_bucket_policy" "cors_bucket_policy" {
   bucket = aws_s3_bucket.cors_bucket.bucket
   policy = jsonencode({
@@ -59,5 +68,3 @@ resource "aws_s3_bucket_policy" "cors_bucket_policy" {
     ]
   })
 }
-
-
