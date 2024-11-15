@@ -5,8 +5,14 @@ provider "aws" {
 # Create an S3 bucket
 resource "aws_s3_bucket" "cors_bucket" {
   bucket = "my-cors-enabled-bucket-12345" # Change to a globally unique bucket name
-  acl    = "public-read"                  # Set to public, we'll manage public access via policy
 }
+
+
+resource "aws_s3_bucket_acl" "cors_bucket_acl" {
+  bucket = aws_s3_bucket.cors_bucket.id
+  acl    = "public-read" # Set to public, we'll manage public access via policy
+}
+
 
 # Remove public access block settings (allow public access if needed)
 resource "aws_s3_bucket_public_access_block" "cors_bucket_public_access_block" {
