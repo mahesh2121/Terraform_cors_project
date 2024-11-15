@@ -51,7 +51,7 @@ jobs:
 
     # Upload the tfplan artifact for the deploy job
     - name: "Upload Terraform Plan"
-      if: github.event_name == 'pull_request'
+      if: github.event_name == 'pull_request' || github.event_name == 'push'
       uses: actions/upload-artifact@v4
       with:
         name: tfplan
