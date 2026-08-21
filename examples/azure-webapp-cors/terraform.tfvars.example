@@ -1,16 +1,40 @@
 # Copy this file to terraform.tfvars (gitignored) and adjust the values.
 # The web app name must be globally unique within Azure.
 
-app_name            = "my-cors-webapp"
+app_name            = "my-private-webapp"
 location            = "eastus"
-resource_group_name = "rg-my-cors-webapp"
-sku_name            = "F1"
+resource_group_name = "rg-my-private-webapp"
 
-cors_allowed_origins = ["https://my-frontend.example.com"]
+# Windows web app with a private endpoint (Premium SKU required)
+os_type  = "Windows"
+sku_name = "P1v3"
+
+windows_application_stack = {
+  current_stack = "node"
+  node_version  = "~20"
+}
 
 app_settings = {
-  WEBSITE_NODE_DEFAULT_VERSION = "20-lts"
+  WEBSITE_NODE_DEFAULT_VERSION = "~20"
 }
+
+# Private endpoint: the web app becomes private-only
+enable_private_endpoint       = true
+virtual_network_address_space = ["10.10.0.0/24"]
+private_endpoint_subnet_prefixes = ["10.10.0.0/27"]
+
+# Managed identity
+enable_system_assigned_identity = true
+
+# Microsoft Entra authentication (fill in your app registration details)
+enable_auth                    = false
+auth_client_id                 = "00000000-0000-0000-0000-000000000000"
+auth_client_secret             = ""
+auth_client_secret_setting_name = "MICROSOFT_PROVIDER_AUTHENTICATION_SECRET"
+auth_tenant_id                 = "00000000-0000-0000-0000-000000000000"
+auth_unauthenticated_action    = "RedirectToLoginPage"
+
+cors_allowed_origins = ["https://my-frontend.example.com"]
 
 tags = {
   Project     = "terraform-cors-project"
