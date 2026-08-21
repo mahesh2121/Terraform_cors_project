@@ -1,0 +1,67 @@
+name: Bug report
+description: Report a bug in a Terraform module or in the CI/CD pipeline
+title: "[Bug]: "
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill in as much detail as possible.
+  - type: input
+    id: module
+    attributes:
+      label: Module / component
+      description: Which module, example, or workflow is affected?
+      placeholder: e.g. modules/s3-cors-website
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Module version, git tag, or commit SHA
+      placeholder: e.g. v1.0.0 or 3f3be9b
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what happened.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: |
+        Minimal Terraform configuration and commands to reproduce the issue.
+        Do NOT paste credentials or secrets.
+      render: hcl
+      placeholder: |
+        1. terraform init
+        2. terraform plan
+        3. terraform apply
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen instead?
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / error output
+      description: Paste relevant `terraform` / CI output (redact secrets).
+      render: shell
+  - type: input
+    id: tf-version
+    attributes:
+      label: Terraform version
+      placeholder: e.g. 1.9.8
+  - type: input
+    id: provider-version
+    attributes:
+      label: Provider version
+      placeholder: e.g. hashicorp/aws 5.75.1

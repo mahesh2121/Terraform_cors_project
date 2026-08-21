@@ -1,0 +1,14 @@
+# Normalize line endings for text files across operating systems
+* text=auto
+
+# Terraform files
+*.tf text eol=lf
+*.tfvars text eol=lf
+*.hcl text eol=lf
+
+# Scripts require LF so they can be executed on any runner
+*.sh text eol=lf
+*.py text eol=lf
+
+# Lockfiles are machine-generated; do not resolve conflicts manually
+.terraform.lock.hcl binary

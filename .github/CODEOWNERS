@@ -1,0 +1,10 @@
+# Default owners for everything in the repo.
+# These owners will be requested for review when a PR touches matching paths.
+*                    @mahesh2121
+
+# CI/CD pipelines
+/.github/            @mahesh2121
+
+# Terraform modules
+/modules/            @mahesh2121
+/examples/           @mahesh2121

@@ -1,0 +1,49 @@
+version: 2
+updates:
+  # Keep GitHub Actions up to date
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+
+  # Terraform provider constraints in the examples
+  - package-ecosystem: terraform
+    directory: /examples/s3-cors-website
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - terraform
+
+  - package-ecosystem: terraform
+    directory: /examples/azure-webapp-cors
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - terraform
+
+  # Terraform provider constraints in the modules
+  - package-ecosystem: terraform
+    directory: /modules/s3-cors-website
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - terraform
+
+  - package-ecosystem: terraform
+    directory: /modules/azure-webapp-cors
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - terraform
