@@ -1,0 +1,19 @@
+# Copy this file to terraform.tfvars (gitignored) and adjust the values.
+# The web app name must be globally unique within Azure.
+
+app_name            = "my-cors-webapp"
+location            = "eastus"
+resource_group_name = "rg-my-cors-webapp"
+sku_name            = "F1"
+
+cors_allowed_origins = ["https://my-frontend.example.com"]
+
+app_settings = {
+  WEBSITE_NODE_DEFAULT_VERSION = "20-lts"
+}
+
+tags = {
+  Project     = "terraform-cors-project"
+  Environment = "dev"
+  ManagedBy   = "terraform"
+}
