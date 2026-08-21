@@ -1,0 +1,12 @@
+# Copy this file to terraform.tfvars (gitignored) and adjust the values.
+# The bucket name must be globally unique.
+
+bucket_name          = "my-cors-enabled-bucket-12345"
+region               = "ap-south-1"
+cors_allowed_origins = ["*"]
+
+tags = {
+  Project     = "terraform-cors-project"
+  Environment = "dev"
+  ManagedBy   = "terraform"
+}

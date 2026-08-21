@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test CORS with S3</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 3rem; color: #1f2937; }
+    button { padding: 0.5rem 1rem; margin-right: 0.5rem; cursor: pointer; }
+    #result { margin-top: 1rem; white-space: pre-wrap; background: #f3f4f6; padding: 1rem; border-radius: 6px; }
+    input { width: 32rem; max-width: 90%; padding: 0.4rem; }
+  </style>
+</head>
+<body>
+  <h1>Testing CORS on Amazon S3</h1>
+  <p>
+    This page is served from the S3 static website endpoint. To verify CORS,
+    fetch the target URL below from this (different-origin) page.
+  </p>
+  <label for="target">Target URL:</label><br>
+  <input id="target" type="text" value="https://my-cors-enabled-bucket-12345.s3.amazonaws.com/index.html" /><br><br>
+  <button onclick="fetchData()">Fetch via CORS</button>
+  <button onclick="preflight()">Send preflight (OPTIONS)</button>
+  <div id="result">Click a button to run a CORS test.</div>
+
+  <script>
+    const BUCKET_URL = "https://my-cors-enabled-bucket-12345.s3.amazonaws.com"; // TODO: replace with your bucket
+
+    async function fetchData() {
+      const url = document.getElementById("target").value || `${BUCKET_URL}/index.html`;
+      const result = document.getElementById("result");
+      try {
+        const response = await fetch(url, { mode: "cors" });
+        const text = await response.text();
+        result.innerText = `[OK] ${response.status}\nAccess-Control-Allow-Origin: ${response.headers.get("access-control-allow-origin") || "(absent)"}\n\n${text.slice(0, 500)}`;
+      } catch (error) {
+        result.innerText = `[ERROR] ${error}\n\nIf this is a CORS failure, check the bucket CORS rules (allowed_origins).`;
+      }
+    }
+
+    async function preflight() {
+      const url = document.getElementById("target").value || `${BUCKET_URL}/index.html`;
+      const result = document.getElementById("result");
+      try {
+        const response = await fetch(url, {
+          method: "OPTIONS",
+          headers: { Origin: window.location.origin, "Access-Control-Request-Method": "GET" }
+        });
+        result.innerText = `[OK] ${response.status}\nAccess-Control-Allow-Origin: ${response.headers.get("access-control-allow-origin") || "(absent)"}\nAccess-Control-Allow-Methods: ${response.headers.get("access-control-allow-methods") || "(absent)"}\nAccess-Control-Max-Age: ${response.headers.get("access-control-max-age") || "(absent)"}`;
+      } catch (error) {
+        result.innerText = `[ERROR] ${error}`;
+      }
+    }
+  </script>
+</body>
+</html>
