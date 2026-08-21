@@ -35,6 +35,9 @@ variable "os_type" {
   }
 }
 
+# -----------------------------------------------------------------------------
+# App Service plan
+# -----------------------------------------------------------------------------
 variable "service_plan_name" {
   description = "Name of the App Service plan. Defaults to `<name>-plan` when null."
   type        = string
@@ -42,11 +45,38 @@ variable "service_plan_name" {
 }
 
 variable "sku_name" {
-  description = "SKU of the App Service plan (e.g. F1, B1, S1, P1v2). Private endpoints require the Premium v2/v3 tiers (P1v2, P1v3, ...)."
+  description = "SKU of the App Service plan (e.g. F1, B1, S1, P1v2, P1v3). Private endpoints require Premium v2/v3; zone redundancy requires Premium v2/v3 with at least 3 workers."
   type        = string
   default     = "F1"
 }
 
+variable "worker_count" {
+  description = "Number of workers (instances) allocated to the plan and web app. Raised to 3 when `zone_redundant` is true."
+  type        = number
+  default     = 1
+}
+
+variable "zone_redundant" {
+  description = "Whether the App Service plan should balance across availability zones (Premium v2/v3 SKUs, minimum 3 workers)."
+  type        = bool
+  default     = false
+}
+
+variable "per_site_scaling_enabled" {
+  description = "Whether per-site scaling is enabled on the App Service plan."
+  type        = bool
+  default     = false
+}
+
+variable "maximum_elastic_worker_count" {
+  description = "Maximum number of workers for Elastic/Premium plan auto-scale. Only valid with Elastic (EP) or Premium plans with auto-scaling enabled."
+  type        = number
+  default     = null
+}
+
+# -----------------------------------------------------------------------------
+# Site configuration
+# -----------------------------------------------------------------------------
 variable "https_only" {
   description = "Whether to redirect all HTTP traffic to HTTPS."
   type        = bool
@@ -92,6 +122,23 @@ variable "app_command_line" {
   description = "Custom startup command for the web app. Set to null to use the default."
   type        = string
   default     = null
+}
+
+variable "health_check_path" {
+  description = "Path used for the App Service health check (e.g. `/healthz`). Set to null to disable."
+  type        = string
+  default     = null
+}
+
+variable "health_check_eviction_time_in_min" {
+  description = "Minutes a node can stay unhealthy before being removed from the load balancer (2-10). Only valid together with `health_check_path`."
+  type        = number
+  default     = null
+
+  validation {
+    condition     = var.health_check_eviction_time_in_min == null || (var.health_check_eviction_time_in_min >= 2 && var.health_check_eviction_time_in_min <= 10)
+    error_message = "health_check_eviction_time_in_min must be between 2 and 10 minutes."
+  }
 }
 
 variable "application_stack" {
@@ -147,6 +194,84 @@ variable "app_settings" {
   default     = {}
 }
 
+variable "connection_strings" {
+  description = "Connection strings to configure on the web app (Windows only; on Linux use app settings)."
+  type        = map(object({
+    type  = string
+    value = string
+  }))
+  default = {}
+}
+
+variable "sticky_app_setting_names" {
+  description = "App setting names that must not be swapped between deployment slots."
+  type        = list(string)
+  default     = []
+}
+
+variable "sticky_connection_string_names" {
+  description = "Connection string names that must not be swapped between deployment slots (Windows only)."
+  type        = list(string)
+  default     = []
+}
+
+# -----------------------------------------------------------------------------
+# Access restrictions
+# -----------------------------------------------------------------------------
+variable "ip_restrictions" {
+  description = <<-EOT
+    IP access restrictions for the main site. Each rule supports: `name`,
+    `priority` (1-65536, lower wins), `action` (Allow/Deny), and one of
+    `ip_address` (CIDR), `service_tag` or `virtual_network_subnet_id`.
+  EOT
+  type = list(object({
+    name                      = string
+    priority                  = number
+    action                    = optional(string, "Allow")
+    ip_address                = optional(string)
+    service_tag               = optional(string)
+    virtual_network_subnet_id = optional(string)
+  }))
+  default = []
+}
+
+variable "scm_ip_restrictions" {
+  description = "IP access restrictions for the SCM (Kudu) endpoint. Same rule format as `ip_restrictions`. The SCM endpoint is already private when a private endpoint is enabled."
+  type        = list(object({
+    name                      = string
+    priority                  = number
+    action                    = optional(string, "Allow")
+    ip_address                = optional(string)
+    service_tag               = optional(string)
+    virtual_network_subnet_id = optional(string)
+  }))
+  default = []
+}
+
+variable "scm_use_main_ip_restriction" {
+  description = "Whether the SCM endpoint should use the same restrictions as the main site."
+  type        = bool
+  default     = false
+}
+
+# -----------------------------------------------------------------------------
+# VNet integration (outbound traffic)
+# -----------------------------------------------------------------------------
+variable "vnet_integration_subnet_id" {
+  description = "ID of a subnet delegated to Microsoft.Web/serverFarms for regional VNet integration (outbound traffic). Set to null to disable."
+  type        = string
+  default     = null
+}
+
+variable "vnet_route_all_enabled" {
+  description = "Whether all outbound traffic should go through the VNet (NAT/NSG/UDR applied)."
+  type        = bool
+  default     = false
+}
+
+# -----------------------------------------------------------------------------
+# CORS
+# -----------------------------------------------------------------------------
 variable "cors_allowed_origins" {
   description = "List of origins allowed to make cross-origin requests to the web app. Use `[\"*\"]` to allow all origins (not recommended for production)."
   type        = list(string)
@@ -166,6 +291,24 @@ variable "enable_system_assigned_identity" {
   description = "Whether to assign a system-assigned managed identity to the web app."
   type        = bool
   default     = false
+}
+
+variable "user_assigned_identity_ids" {
+  description = "IDs of existing user-assigned managed identities to assign to the web app."
+  type        = list(string)
+  default     = []
+}
+
+variable "create_user_assigned_identity" {
+  description = "Whether to create a user-assigned managed identity (e.g. for Azure Container Registry pulls or Key Vault references) and assign it to the web app."
+  type        = bool
+  default     = false
+}
+
+variable "user_assigned_identity_name" {
+  description = "Name of the user-assigned identity created when `create_user_assigned_identity` is true. Defaults to `<name>-uai`."
+  type        = string
+  default     = null
 }
 
 variable "auth_settings" {
@@ -219,6 +362,124 @@ variable "virtual_network_id" {
   description = "ID of the virtual network to link to the private DNS zone (for name resolution). Required when the module creates the zone. When an existing zone is used, only set this if the zone lives in the web app's resource group (the module creates the VNet link there); otherwise link your VNet to the zone yourself and leave this null."
   type        = string
   default     = null
+}
+
+# -----------------------------------------------------------------------------
+# Deployment slot
+# -----------------------------------------------------------------------------
+variable "enable_staging_slot" {
+  description = "Whether to create a staging deployment slot for zero-downtime deployments."
+  type        = bool
+  default     = false
+}
+
+variable "staging_slot_name" {
+  description = "Name of the staging deployment slot."
+  type        = string
+  default     = "staging"
+}
+
+# -----------------------------------------------------------------------------
+# Backup (Windows and Linux, Standard SKU or higher)
+# -----------------------------------------------------------------------------
+variable "backup_settings" {
+  description = <<-EOT
+    Backup configuration (requires Standard SKU or higher and a storage
+    account SAS URL). Set to null to disable backups. The `storage_account_url`
+    must be a SAS URL pointing to the backup container.
+  EOT
+  type = object({
+    storage_account_url      = string
+    frequency_interval       = optional(number, 1)
+    frequency_unit           = optional(string, "Day")
+    retention_period_days    = optional(number, 30)
+    keep_at_least_one_backup = optional(bool, true)
+    start_time               = optional(string)
+  })
+  default = null
+}
+
+# -----------------------------------------------------------------------------
+# Custom domain + TLS certificate
+# -----------------------------------------------------------------------------
+variable "custom_domain" {
+  description = "Custom hostname to bind to the web app (e.g. `www.example.com`). The CNAME/verification record must already exist in DNS. Set to null to skip."
+  type        = string
+  default     = null
+}
+
+variable "certificate_pfx_blob" {
+  description = "Base64-encoded PFX certificate for the custom domain (SNI binding). Set together with `custom_domain`."
+  type        = string
+  sensitive   = true
+  default     = null
+}
+
+variable "certificate_password" {
+  description = "Password of the PFX certificate passed in `certificate_pfx_blob`."
+  type        = string
+  sensitive   = true
+  default     = null
+}
+
+# -----------------------------------------------------------------------------
+# Monitoring: Application Insights, Log Analytics, diagnostics, alerts
+# -----------------------------------------------------------------------------
+variable "enable_monitoring" {
+  description = "Whether to create Application Insights (workspace-based), a Log Analytics workspace (unless one is provided) and diagnostic settings for the web app."
+  type        = bool
+  default     = true
+}
+
+variable "log_analytics_workspace_id" {
+  description = "ID of an existing Log Analytics workspace. When null and monitoring is enabled, the module creates one."
+  type        = string
+  default     = null
+}
+
+variable "log_analytics_workspace_sku" {
+  description = "SKU of the Log Analytics workspace created by the module."
+  type        = string
+  default     = "PerGB2018"
+}
+
+variable "log_analytics_retention_in_days" {
+  description = "Retention in days of the Log Analytics workspace created by the module (30-730)."
+  type        = number
+  default     = 30
+}
+
+variable "application_insights_type" {
+  description = "Application type of the Application Insights instance."
+  type        = string
+  default     = "web"
+}
+
+variable "enable_alerts" {
+  description = "Whether to create metric alert rules for the web app. Requires `alert_email_addresses` (an action group is created from them)."
+  type        = bool
+  default     = false
+}
+
+variable "alert_email_addresses" {
+  description = "Email addresses that receive metric alerts (added to a module-managed action group)."
+  type        = list(string)
+  default     = []
+}
+
+variable "alert_settings" {
+  description = "Thresholds for the metric alert rules (created when `enable_alerts` is true and `alert_email_addresses` is not empty)."
+  type        = object({
+    http_5xx_enabled           = optional(bool, true)
+    http_5xx_threshold         = optional(number, 10)
+    http_4xx_enabled           = optional(bool, false)
+    http_4xx_threshold         = optional(number, 50)
+    response_time_enabled      = optional(bool, false)
+    response_time_threshold_ms = optional(number, 1000)
+    cpu_enabled                = optional(bool, false)
+    cpu_threshold              = optional(number, 80)
+  })
+  default = {}
 }
 
 variable "tags" {

@@ -1,13 +1,15 @@
 # Copy this file to terraform.tfvars (gitignored) and adjust the values.
 # The web app name must be globally unique within Azure.
 
-app_name            = "my-private-webapp"
+app_name            = "my-prod-webapp"
 location            = "eastus"
-resource_group_name = "rg-my-private-webapp"
+resource_group_name = "rg-my-prod-webapp"
 
-# Windows web app with a private endpoint (Premium SKU required)
-os_type  = "Windows"
-sku_name = "P1v3"
+# Windows web app, zone-redundant Premium plan
+os_type        = "Windows"
+sku_name       = "P1v3"
+zone_redundant = true
+worker_count   = 3
 
 windows_application_stack = {
   current_stack = "node"
@@ -18,26 +20,76 @@ app_settings = {
   WEBSITE_NODE_DEFAULT_VERSION = "~20"
 }
 
+# Health check
+health_check_path                 = "/healthz"
+health_check_eviction_time_in_min = 2
+
+# Zero-downtime deployments
+enable_staging_slot = true
+
 # Private endpoint: the web app becomes private-only
-enable_private_endpoint       = true
-virtual_network_address_space = ["10.10.0.0/24"]
+enable_private_endpoint          = true
+virtual_network_address_space    = ["10.10.0.0/24"]
 private_endpoint_subnet_prefixes = ["10.10.0.0/27"]
 
-# Managed identity
+# Outbound traffic through the VNet (delegated subnet)
+vnet_integration_enabled        = true
+vnet_integration_subnet_prefixes = ["10.10.0.32/27"]
+vnet_route_all_enabled          = true
+
+# Access restrictions (the site is private-only anyway; add rules as needed)
+ip_restrictions = [
+  # {
+  #   name     = "allow-frontdoor"
+  #   priority = 100
+  #   action   = "Allow"
+  #   service_tag = "AzureFrontDoor.Backend"
+  # },
+]
+scm_use_main_ip_restriction = true
+
+# Managed identities
 enable_system_assigned_identity = true
+create_user_assigned_identity   = true
 
 # Microsoft Entra authentication (fill in your app registration details)
-enable_auth                    = false
-auth_client_id                 = "00000000-0000-0000-0000-000000000000"
-auth_client_secret             = ""
+enable_auth                     = false
+auth_client_id                  = "00000000-0000-0000-0000-000000000000"
+auth_client_secret              = ""
 auth_client_secret_setting_name = "MICROSOFT_PROVIDER_AUTHENTICATION_SECRET"
-auth_tenant_id                 = "00000000-0000-0000-0000-000000000000"
-auth_unauthenticated_action    = "RedirectToLoginPage"
+auth_tenant_id                  = "00000000-0000-0000-0000-000000000000"
+auth_unauthenticated_action     = "RedirectToLoginPage"
 
-cors_allowed_origins = ["https://my-frontend.example.com"]
+# Backup (Standard SKU or higher; SAS URL to a storage container)
+backup_settings = null
+# backup_settings = {
+#   storage_account_url      = "https://mystorage.blob.core.windows.net/backups?<SAS>"
+#   frequency_interval       = 1
+#   frequency_unit           = "Day"
+#   retention_period_days    = 30
+#   keep_at_least_one_backup = true
+# }
+
+# Custom domain + certificate (CNAME must already exist in DNS)
+custom_domain        = null
+certificate_pfx_blob = null
+certificate_password = null
+
+# Monitoring & alerts
+enable_monitoring = true
+enable_alerts     = true
+alert_email_addresses = ["oncall@example.com"]
+alert_settings = {
+  http_5xx_enabled   = true
+  http_5xx_threshold = 10
+  cpu_enabled        = true
+  cpu_threshold      = 80
+}
+
+cors_allowed_origins = ["https://app.example.com"]
 
 tags = {
   Project     = "terraform-cors-project"
-  Environment = "dev"
+  Environment = "prod"
   ManagedBy   = "terraform"
 }

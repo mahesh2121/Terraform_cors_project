@@ -15,7 +15,7 @@ plan → apply → drift detection → release).
 | Module | Cloud | Description |
 | ------ | ----- | ----------- |
 | [`modules/s3-cors-website`](modules/s3-cors-website) | AWS | S3 bucket as a public static website with configurable CORS rules, versioning, bucket policy and content upload |
-| [`modules/azure-webapp-cors`](modules/azure-webapp-cors) | Azure | App Service web app (**Linux & Windows**) with CORS, private endpoint + private DNS zone, Microsoft Entra authentication and managed identity |
+| [`modules/azure-webapp-cors`](modules/azure-webapp-cors) | Azure | **Production-ready** App Service web app (Linux & Windows): CORS, private endpoint + DNS, Entra auth, managed identities, monitoring & alerts, zone redundancy, staging slots, backups, VNet integration, access restrictions, custom domains |
 
 Every module follows the [standard module layout](AGENTS.md): `versions.tf`,
 `variables.tf`, `main.tf`, `outputs.tf` and a terraform-docs generated
@@ -27,7 +27,7 @@ providers.
 | Example | Description |
 | ------- | ----------- |
 | [`examples/s3-cors-website`](examples/s3-cors-website) | Deploys the S3 CORS module with a test page (`www/index.html`) that proves CORS works across origins |
-| [`examples/azure-webapp-cors`](examples/azure-webapp-cors) | Deploys a **Windows** web app with private endpoint + private DNS, Entra auth, managed identity and restrictive CORS origins |
+| [`examples/azure-webapp-cors`](examples/azure-webapp-cors) | Production-grade deployment: Windows web app, zone-redundant plan, private endpoint + DNS, VNet integration, staging slot, identities, Entra auth, backups, monitoring & alerts, CORS |
 
 ## Repository structure
 
