@@ -27,7 +27,8 @@ providers.
 | Example | Description |
 | ------- | ----------- |
 | [`examples/s3-cors-website`](examples/s3-cors-website) | Deploys the S3 CORS module with a test page (`www/index.html`) that proves CORS works across origins |
-| [`examples/azure-webapp-cors`](examples/azure-webapp-cors) | Production-grade deployment: Windows web app, zone-redundant plan, private endpoint + DNS, VNet integration, staging slot, identities, Entra auth, backups, monitoring & alerts, CORS |
+| [`examples/azure-webapp-cors`](examples/azure-webapp-cors) | Production-grade deployment: Windows/Linux web app, zone-redundant plan, private endpoint + DNS, VNet integration, staging slot, identities, Entra auth, backups, monitoring & alerts, CORS |
+| [`examples/azure-webapp-cors-windows`](examples/azure-webapp-cors-windows) | **Full feature test**: a Windows web app exercising every module feature (20-feature checklist with verification commands) |
 
 ## Repository structure
 
