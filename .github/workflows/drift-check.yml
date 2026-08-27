@@ -1,0 +1,131 @@
+name: "Terraform Drift Check"
+
+on:
+  # schedule:
+  #   - cron: "*/5 * * * *"
+
+  workflow_dispatch:
+
+env:
+  TF_WORKING_DIR: examples/s3-cors-website
+  # Must match the bucket name used by terraform.yml so the drift check
+  # compares state for the same resources.
+  TF_BUCKET_NAME: tf-cors-ci-${{ github.repository_id }}
+
+jobs:
+  drift_check:
+    name: "Scheduled Terraform Drift Detection"
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Configure AWS credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-south-1' }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.12.2"
+          terraform_wrapper: false
+
+      # Drift detection is meaningless without remote state: with empty local
+      # state every resource shows as "to create" (false drift). Require the
+      # TF_STATE_* configuration here.
+      - name: Terraform init
+        run: |
+          if [ -z "$TF_STATE_BUCKET" ]; then
+            echo "::error::TF_STATE_BUCKET / TF_STATE_KEY secrets are required for drift detection (remote state is mandatory)."
+            exit 1
+          fi
+          cat > backend.ci.hcl <<EOF
+          bucket         = "$TF_STATE_BUCKET"
+          key            = "${TF_STATE_KEY:-terraform/state/terraform.tfstate}"
+          region         = "${AWS_REGION:-ap-south-1}"
+          encrypt        = true
+          EOF
+          if [ -n "$TF_STATE_LOCK_TABLE" ]; then
+            echo "dynamodb_table = \"$TF_STATE_LOCK_TABLE\"" >> backend.ci.hcl
+          fi
+          terraform init -input=false -backend-config=backend.ci.hcl
+        env:
+          TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+          TF_STATE_KEY: ${{ secrets.TF_STATE_KEY }}
+          TF_STATE_LOCK_TABLE: ${{ secrets.TF_STATE_LOCK_TABLE }}
+          AWS_REGION: ${{ vars.AWS_REGION || 'ap-south-1' }}
+
+      - name: Terraform validate
+        run: terraform validate
+
+      # terraform.tfvars is gitignored; create it from the example template.
+      # bucket_name is a required variable (no default).
+      - name: Create terraform.tfvars
+        run: |
+          cp terraform.tfvars.example terraform.tfvars
+          sed -i "s/^bucket_name *= .*/bucket_name = \"$TF_BUCKET_NAME\"/" terraform.tfvars
+
+      - name: Terraform plan (drift check)
+        id: drift
+        run: |
+          set +e
+          terraform plan -no-color -detailed-exitcode -input=false -out drift-plan > drift.log 2>&1
+          EXIT_CODE=$?
+          set -e
+          echo "Terraform exited with code: $EXIT_CODE"
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+          terraform show -no-color drift-plan > tfplanfile.txt || true
+          cat drift.log
+
+      - name: Upload drift log
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-drift-log
+          # upload-artifact paths are relative to the repository root.
+          path: ${{ env.TF_WORKING_DIR }}/drift.log
+
+      - name: Send Drift Detected Email
+        if: ${{ steps.drift.outputs.exit_code == '2' }}
+        run: |
+          echo "Infrastructure drift detected."
+          if [ -f "$GITHUB_WORKSPACE/scripts/send_drift_email.py" ]; then
+            python3 "$GITHUB_WORKSPACE/scripts/send_drift_email.py"
+          else
+            echo "::warning::scripts/send_drift_email.py not found in the repository - skipping drift email."
+          fi
+        env:
+          AWS_DEFAULT_REGION: ${{ vars.AWS_REGION || 'ap-south-1' }}
+          SENDER_EMAIL: ${{ vars.SENDER_EMAIL }}
+          RECIPIENT_EMAIL: ${{ vars.RECIPIENT_EMAIL }}
+
+      - name: Log Drift to CloudWatch
+        if: ${{ steps.drift.outputs.exit_code == '2' }}
+        run: |
+          echo "Infrastructure drift detected."
+          if [ -f "$GITHUB_WORKSPACE/scripts/log_to_cloudwatch.py" ]; then
+            python3 "$GITHUB_WORKSPACE/scripts/log_to_cloudwatch.py" drift.log /github/terraform/drift
+          else
+            echo "::warning::scripts/log_to_cloudwatch.py not found in the repository - skipping CloudWatch logging."
+          fi
+
+      - name: No Drift Detected
+        if: ${{ steps.drift.outputs.exit_code == '0' }}
+        run: echo "No infrastructure drift detected."
+
+      - name: Handle Terraform Errors
+        if: steps.drift.outputs.exit_code != '0' && steps.drift.outputs.exit_code != '2'
+        run: |
+          echo "Terraform plan failed. Check drift.log for details."
+          exit 1

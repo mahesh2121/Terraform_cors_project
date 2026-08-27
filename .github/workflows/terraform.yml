@@ -7,13 +7,17 @@ on:
   pull_request:
     branches:
     - master
+  workflow_dispatch:
 
 env:
   TF_VERSION: "1.5.0" # Update this to your Terraform version
-  TF_WORKING_DIR: "." # Directory containing your Terraform files
-  AWS_REGION: "us-east-1" # Update this to your AWS region
+  TF_WORKING_DIR: examples/s3-cors-website # Directory containing your Terraform files
+  AWS_REGION: "ap-south-1" # Update this to your AWS region
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  # Bucket created by the example - must be globally unique.
+  # github.repository_id is a stable, repo-unique number.
+  TF_BUCKET_NAME: tf-cors-ci-${{ github.repository_id }}
 
 jobs:
   terraform:
@@ -32,12 +36,37 @@ jobs:
       with:
         terraform_version: ${{ env.TF_VERSION }}
 
+    # The example declares a partial S3 backend (backend "s3" {}) that is
+    # completed with -backend-config. When the TF_STATE_* secrets are not
+    # configured, fall back to -backend=false (local, throwaway state) so the
+    # pipeline still validates and plans.
     - name: "Terraform Init"
-      run: terraform init
+      id: init
+      run: |
+        if [ -n "$TF_STATE_BUCKET" ]; then
+          cat > backend.ci.hcl <<EOF
+        bucket         = "$TF_STATE_BUCKET"
+        key            = "${TF_STATE_KEY:-terraform/state/terraform.tfstate}"
+        region         = "$AWS_REGION"
+        encrypt        = true
+        EOF
+          if [ -n "$TF_STATE_LOCK_TABLE" ]; then
+            echo "dynamodb_table = \"$TF_STATE_LOCK_TABLE\"" >> backend.ci.hcl
+          fi
+          terraform init -input=false -backend-config=backend.ci.hcl
+          echo "remote_state=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "TF_STATE_BUCKET secret not set - initializing with -backend=false (local state, validation only)"
+          terraform init -input=false -backend=false
+          echo "remote_state=false" >> "$GITHUB_OUTPUT"
+        fi
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         AWS_REGION: ${{ env.AWS_REGION }}
+        TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+        TF_STATE_KEY: ${{ secrets.TF_STATE_KEY }}
+        TF_STATE_LOCK_TABLE: ${{ secrets.TF_STATE_LOCK_TABLE }}
 
     - name: "Terraform Format"
       run: terraform fmt -check
@@ -45,17 +74,29 @@ jobs:
     - name: "Terraform Validate"
       run: terraform validate
 
+    # terraform.tfvars is gitignored; create it from the example template.
+    # bucket_name is a required variable (no default) - plan fails without it.
+    - name: "Create terraform.tfvars"
+      run: |
+        cp terraform.tfvars.example terraform.tfvars
+        sed -i "s/^bucket_name *= .*/bucket_name = \"$TF_BUCKET_NAME\"/" terraform.tfvars
+
     - name: "Terraform Plan"
       id: plan
-      run: terraform plan -out=tfplan
+      run: terraform plan -out=tfplan -input=false -no-color
 
-    # Upload the tfplan artifact for the deploy job
+    # Upload the tfplan artifact for the deploy job.
+    # NOTE: "path" of upload/download-artifact is relative to the repository
+    # root, NOT to defaults.run.working-directory.
     - name: "Upload Terraform Plan"
       if: github.event_name == 'pull_request' || github.event_name == 'push'
       uses: actions/upload-artifact@v7
       with:
         name: tfplan
-        path: tfplan
+        path: ${{ env.TF_WORKING_DIR }}/tfplan
+
+    outputs:
+      remote_state: ${{ steps.init.outputs.remote_state }}
 
   deploy:
     name: "Terraform Apply"
@@ -63,6 +104,10 @@ jobs:
     needs: terraform
     if: github.ref == 'refs/heads/master' && github.event_name == 'push'
     environment: production
+
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKING_DIR }}
 
     steps:
     - name: "Checkout code"
@@ -73,24 +118,54 @@ jobs:
       with:
         terraform_version: ${{ env.TF_VERSION }}
 
+    # Must mirror the init of the plan job so the saved tfplan matches the
+    # state backend it was planned against.
     - name: "Terraform Init"
-      run: terraform init
+      run: |
+        if [ -n "$TF_STATE_BUCKET" ]; then
+          cat > backend.ci.hcl <<EOF
+        bucket         = "$TF_STATE_BUCKET"
+        key            = "${TF_STATE_KEY:-terraform/state/terraform.tfstate}"
+        region         = "$AWS_REGION"
+        encrypt        = true
+        EOF
+          if [ -n "$TF_STATE_LOCK_TABLE" ]; then
+            echo "dynamodb_table = \"$TF_STATE_LOCK_TABLE\"" >> backend.ci.hcl
+          fi
+          terraform init -input=false -backend-config=backend.ci.hcl
+        else
+          echo "TF_STATE_BUCKET secret not set - skipping remote state init"
+          terraform init -input=false -backend=false
+        fi
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         AWS_REGION: ${{ env.AWS_REGION }}
+        TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+        TF_STATE_KEY: ${{ secrets.TF_STATE_KEY }}
+        TF_STATE_LOCK_TABLE: ${{ secrets.TF_STATE_LOCK_TABLE }}
 
-    # Download the tfplan artifact from the terraform job
+    # Download the tfplan artifact from the terraform job into the working dir
     - name: "Download Terraform Plan"
       uses: actions/download-artifact@v8
       with:
         name: tfplan
+        path: ${{ env.TF_WORKING_DIR }}
 
     # Check if the tfplan file exists
     - name: "Check if tfplan file exists"
       run: ls -l tfplan
 
+    # Never apply a plan that was created against throwaway local state -
+    # applying it would create real resources whose state is then lost.
+    - name: "Guard: remote state configured"
+      if: needs.terraform.outputs.remote_state != 'true'
+      run: |
+        echo "::warning::TF_STATE_BUCKET/TF_STATE_KEY secrets are not configured - skipping apply (plan was made with local state)."
+        exit 1
+
     - name: "Terraform Apply"
+      if: needs.terraform.outputs.remote_state == 'true'
       run: terraform apply -auto-approve tfplan
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -98,7 +173,7 @@ jobs:
         AWS_REGION: ${{ env.AWS_REGION }}
 
     # - name: "Terraform Destroy"
-    #   run: terraform destroy -auto-approve 
+    #   run: terraform destroy -auto-approve
     #   env:
     #     AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
     #     AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
