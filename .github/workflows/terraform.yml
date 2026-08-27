@@ -82,7 +82,7 @@ jobs:
 
     # Download the tfplan artifact from the terraform job
     - name: "Download Terraform Plan"
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: tfplan
 
