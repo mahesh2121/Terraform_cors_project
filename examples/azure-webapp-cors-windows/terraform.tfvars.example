@@ -1,0 +1,124 @@
+# Copy this file to terraform.tfvars (gitignored) and adjust the values.
+# The web app name must be globally unique within Azure.
+#
+# This example tests EVERY feature of modules/azure-webapp-cors on a
+# Windows web app. Fill in the marked placeholders to activate the features
+# that need user-supplied data (auth, backups, custom domain).
+
+app_name            = "my-windows-webapp"
+location            = "eastus"
+resource_group_name = "rg-my-windows-webapp"
+
+# --- High availability: zone-redundant Premium plan -------------------------
+sku_name                = "P1v3"
+zone_redundant          = true
+worker_count            = 3
+per_site_scaling_enabled = true
+
+# --- Windows application stack ----------------------------------------------
+windows_application_stack = {
+  current_stack = "node"
+  node_version  = "~20"
+}
+
+# --- Configuration: app settings + connection strings ------------------------
+app_settings = {
+  WEBSITE_NODE_DEFAULT_VERSION = "~20"
+  DATABASE_URL                 = "Server=tcp:myserver.database.windows.net,1433;Database=appdb;"
+}
+
+connection_strings = {
+  DefaultConnection = {
+    type  = "SQLAzure"
+    value = "Server=tcp:myserver.database.windows.net,1433;Database=appdb;User ID=appuser;Password=REDACTED;Encrypt=true;"
+  }
+}
+
+# --- Health check ------------------------------------------------------------
+health_check_path                 = "/healthz"
+health_check_eviction_time_in_min = 2
+
+# --- Zero-downtime deployments ----------------------------------------------
+enable_staging_slot            = true
+staging_slot_name              = "staging"
+sticky_app_setting_names       = ["DATABASE_URL"]
+sticky_connection_string_names = ["DefaultConnection"]
+
+# --- Access restrictions -----------------------------------------------------
+# The site is private-only because of the private endpoint; these rules apply
+# to the public surface if/when public access is re-enabled, and to SCM.
+ip_restrictions = [
+  # {
+  #   name        = "allow-azure-frontdoor"
+  #   priority    = 100
+  #   action      = "Allow"
+  #   service_tag = "AzureFrontDoor.Backend"
+  # },
+  # {
+  #   name        = "allow-office"
+  #   priority    = 200
+  #   action      = "Allow"
+  #   ip_address  = "203.0.113.0/24"
+  # },
+]
+scm_ip_restrictions         = []
+scm_use_main_ip_restriction = true
+
+# --- Networking: private endpoint + VNet integration ------------------------
+enable_private_endpoint          = true
+virtual_network_address_space    = ["10.10.0.0/24"]
+private_endpoint_subnet_prefixes = ["10.10.0.0/27"]
+vnet_integration_subnet_prefixes = ["10.10.0.32/27"]
+vnet_route_all_enabled           = true
+
+# --- Managed identities ------------------------------------------------------
+enable_system_assigned_identity = true
+create_user_assigned_identity   = true
+
+# --- Microsoft Entra authentication (fill in your app registration) ----------
+enable_auth                     = true
+auth_client_id                  = "00000000-0000-0000-0000-000000000000"
+auth_client_secret              = "REPLACE_WITH_CLIENT_SECRET"
+auth_client_secret_setting_name = "MICROSOFT_PROVIDER_AUTHENTICATION_SECRET"
+auth_tenant_id                  = "00000000-0000-0000-0000-000000000000"
+auth_unauthenticated_action     = "RedirectToLoginPage"
+
+# --- Backup (Standard SKU or higher; SAS URL to a storage container) ---------
+backup_settings = {
+  storage_account_url      = "https://mystorage.blob.core.windows.net/backups?REPLACE_WITH_SAS"
+  frequency_interval       = 1
+  frequency_unit           = "Day"
+  retention_period_days    = 30
+  keep_at_least_one_backup = true
+}
+
+# --- Custom domain + TLS certificate (CNAME must already exist in DNS) -------
+custom_domain        = "www.example.com"
+certificate_pfx_blob = "REPLACE_WITH_BASE64_PFX"
+certificate_password = "REPLACE_WITH_PFX_PASSWORD"
+
+# --- Monitoring & alerts -----------------------------------------------------
+enable_monitoring = true
+enable_alerts     = true
+alert_email_addresses = ["oncall@example.com"]
+alert_settings = {
+  http_5xx_enabled           = true
+  http_5xx_threshold         = 10
+  http_4xx_enabled           = true
+  http_4xx_threshold         = 50
+  response_time_enabled      = true
+  response_time_threshold_ms = 1000
+  cpu_enabled                = true
+  cpu_threshold              = 80
+}
+
+# --- CORS --------------------------------------------------------------------
+cors_allowed_origins     = ["https://app.example.com"]
+cors_support_credentials = false
+
+tags = {
+  Project     = "terraform-cors-project"
+  Environment = "test"
+  Purpose     = "full-feature-test"
+  ManagedBy   = "terraform"
+}

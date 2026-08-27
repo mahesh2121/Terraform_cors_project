@@ -1,0 +1,8 @@
+# Copy this file to backend.azurerm.hcl (gitignored) and adjust the values.
+# Then run: terraform init -backend-config=backend.azurerm.hcl
+# The storage account and container must already exist.
+
+resource_group_name  = "terraform-state-rg"
+storage_account_name = "terraformstateacct"
+container_name       = "tfstate"
+key                  = "examples/azure-webapp-cors/terraform.tfstate"

@@ -4,36 +4,55 @@
 
 # Terraform crash log
 crash.log
+crash.*.log
 
-# Terraform variables
+# Terraform variables & overrides
 *.tfvars
 *.tfvars.json
-
-# Terraform variable override files
 override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
 
-# .terraform directory (Terraform plugins and modules cache)
+# Terraform plugin cache & lock files
 .terraform/
 .terraform.lock.hcl
+.tflint.d/
+
+# Terraform plan artifacts
+tfplan
+*.tfplan
+*.plan
+drift-plan
+drift.log
+
+# Backend configuration (may contain account identifiers)
+backend.*.hcl
+!backend.*.hcl.example
 
 # Sensitive files
 credentials.json
 secrets.tfvars
+*.pem
+*.key
 
 # Ignore backup files
 *.backup
 *.log
+*.zip
 
-# Ignore files created by text editors
+# Ignore files created by text editors and OSes
 *~
 *.swp
 *.swo
 *.bak
 *.tmp
 .DS_Store
-
-# Ignore OS-specific files
 Thumbs.db
+.idea/
+.vscode/
+
+# Python (scripts used by CI)
+__pycache__/
+*.py[cod]
+.venv/
