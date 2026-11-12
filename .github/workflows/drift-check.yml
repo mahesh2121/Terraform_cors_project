@@ -90,7 +90,7 @@ jobs:
           cat drift.log
 
       - name: Upload drift log
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: terraform-drift-log
           # upload-artifact paths are relative to the repository root.
